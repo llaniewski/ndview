@@ -37,6 +37,29 @@ namespace ndv {
         }
     };
 
+    #ifdef __CUDACC__
+        template <typename T>
+        struct gpu_dynamic_size {
+            static inline size_t size_;
+            static void set_size(size_t size__) {
+                size_ = size__;
+                check_cuda(cudaMemcpyToSymbol(T::gpu_size(), &size_, sizeof(size_)),"cudaMemcpyToSymbol(B_size)");
+            }
+            gpuHD static size_t size() {
+                #ifdef __CUDA_ARCH__
+                    return T::gpu_size();
+                #else
+                    return size_;
+                #endif
+            }
+        };
+
+        #define GPU_SIZE(Type) \
+            __constant__ size_t Type##_size_gpu; \
+            struct Type##_size_t { gpuHD static size_t& gpu_size() { return Type##_size_gpu; } }; \
+            using Type = gpu_dynamic_size< Type##_size_t >
+    #endif
+
 
     template <typename... Ns>
     constexpr auto total_size() {
