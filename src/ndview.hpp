@@ -4,6 +4,7 @@
 #include <memory>
 #include <initializer_list>
 #include <stdexcept>
+#include <array>
 
 #ifdef __CUDACC__
 #define gpuHD inline __host__ __device__
@@ -96,72 +97,78 @@ namespace ndv {
         return i;
     }
 
-    template <typename T, typename... Ns>
-    class ndview {
+    template <typename T, typename S, typename... Ns>
+    class ndview_generic {
     public:
+        using storage_t = S;
+        using value_t = T;
         using idx_t = idx<Ns...>;
         static constexpr auto size() { return idx_t::size(); }
-        T* ptr;
-        gpuHD T& at(const idx_t& i) {
-            return ptr[i.value];
+        S tab;
+        // template <typename... T> 
+        // constexpr ndview_generic(T... ts) : tab{ts...} {}
+        constexpr gpuHD T& at(const idx_t& i) {
+            return tab[i.value];
         };
-        gpuHD const T& at(const idx_t& i) const {
-            return ptr[i.value];
+        constexpr gpuHD const T& at(const idx_t& i) const {
+            return tab[i.value];
         };
         template <typename... Is>
-        gpuHD T& operator()(const Is&... idxs) {
+        constexpr gpuHD T& operator()(const Is&... idxs) {
             return at(offset(idxs...));
         };
         template <typename... Is>
-        gpuHD const T& operator()(const Is&... idxs) const {
+        constexpr gpuHD const T& operator()(const Is&... idxs) const {
             return at(offset(idxs...));
         };
     };
 
-
-
     template <typename T, typename... Ns>
-    class ndarray {
+    class ndview : public ndview_generic<T, T*, Ns...> {
     public:
-        using view_t = ndview<T, Ns...>;
-        using idx_t = typename view_t::idx_t;
-        static constexpr auto size() { return view_t::size(); }
-        T tab[size()];
-        gpuHD view_t view() { return view_t{tab}; }
-        gpuHD operator view_t() { return view(); }
-        gpuHD operator const view_t() const { return view(); }
-        gpuHD T* data() { return tab; }
-        gpuHD const T* data() const { return tab; }
-        template <typename... Is>
-        gpuHD T& operator()(const Is&... i) {
-            return view()(i...);
-        };
+        gpuHD T*& data() { return this->tab; }
+        gpuHD const T*& data() const { return this->tab; }
     };
 
-
     template <typename T, typename... Ns>
-    class ndvector {
+    class ndarray : public ndview_generic<T, T[idx<Ns...>::size()], Ns...> {
     public:
-        using view_t = ndview<T, Ns...>;
-        using idx_t = typename view_t::idx_t;
-        static constexpr auto size() { return view_t::size(); }
-        std::unique_ptr<T[]> tab{new T[size()]};
-        ndvector() {}
-        ndvector(std::initializer_list<T> init) {
-            if (init.size() != size()) throw std::runtime_error("Initializer list of wrong size in ndvector");
-            std::copy(init.begin(), init.end(), tab.get()); // Don't know how to do it nicer.
+        using ndv_t = ndview_generic<T, T[idx<Ns...>::size()], Ns...>;
+        gpuHD T* data() { return this->tab; }
+        gpuHD const T* data() const { return this->tab; }
+        constexpr ndarray() : ndv_t{} {}
+        template <class T2>
+        constexpr ndarray(const std::array<T2,idx<Ns...>::size()>& init) : ndv_t{} {
+            // size_t s = idx<Ns...>::size();
+            // // for (size_t i=0;i<s;++i) this->tab[i] = 1;
+            // for (size_t i=0;i<s;++i) this->tab[i] = init[i];
+            size_t k=0;
+            for (const auto& v : init) {
+                if (k<ndv_t::size()) this->tab[k] = v;
+                ++k;
+            }
         }
-        
-        view_t view() { return view_t{tab.get()}; }
-        const view_t view() const { return view_t{tab.get()}; }
-        operator view_t() { return view(); }
-        operator const view_t() const { return view(); }
-        T* data() { return tab.get(); }
-        const T* data() const { return tab.get(); }
-        template <typename... Is>
-        T& operator()(const Is&... i) {
-            return view()(i...);
-        };
+        constexpr ndarray(const std::initializer_list<T> init): ndv_t{} {
+            size_t k=0;
+            for (const auto& v : init) {
+                if (k<ndv_t::size()) this->tab[k] = v;
+                ++k;
+            }
+        }
+    };
+
+
+    template <typename T, typename... Ns>
+    class ndvector : public ndview_generic<T, std::unique_ptr<T[]>, Ns...> {
+    public:
+        using ndv_t = ndview_generic<T, std::unique_ptr<T[]>, Ns...>;
+        ndvector() : ndv_t{std::unique_ptr<T[]>{new T[ndv_t::size()]}} {}
+        ndvector(std::initializer_list<T> init) : ndv_t{std::unique_ptr<T[]>{new T[ndv_t::size()]}} {
+            if (init.size() != ndv_t::size()) throw std::runtime_error("Initializer list of wrong size in ndvector");
+            std::copy(init.begin(), init.end(), this->tab.get()); // Don't know how to do it nicer.
+        }
+        gpuH T* data() { return this->tab.get(); }
+        gpuH const T* data() const { return this->tab.get(); }
     };
 
 }
