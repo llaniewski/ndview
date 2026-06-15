@@ -139,14 +139,14 @@ namespace ndv {
         constexpr ndarray() : ndv_t{} {}
         template <class T2>
         constexpr ndarray(const std::array<T2,idx<Ns...>::size()>& init) : ndv_t{} {
-            // size_t s = idx<Ns...>::size();
-            // // for (size_t i=0;i<s;++i) this->tab[i] = 1;
-            // for (size_t i=0;i<s;++i) this->tab[i] = init[i];
-            size_t k=0;
-            for (const auto& v : init) {
-                if (k<ndv_t::size()) this->tab[k] = v;
-                ++k;
-            }
+            size_t s = idx<Ns...>::size();
+            // for (size_t i=0;i<s;++i) this->tab[i] = 1;
+            for (size_t i=0;i<s;++i) this->tab[i] = init[i];
+            // size_t k=0;
+            // for (const auto& v : init) {
+            //     if (k<ndv_t::size()) this->tab[k] = v;
+            //     ++k;
+            // }
         }
         constexpr ndarray(const std::initializer_list<T> init): ndv_t{} {
             size_t k=0;
