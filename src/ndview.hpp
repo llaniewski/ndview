@@ -126,8 +126,17 @@ namespace ndv {
     template <typename T, typename... Ns>
     class ndview : public ndview_generic<T, T*, Ns...> {
     public:
+        using ndv_t = ndview_generic<T, T*, Ns...>;
         gpuHD T*& data() { return this->tab; }
         gpuHD const T*& data() const { return this->tab; }
+        template <size_t SIZE>
+        constexpr ndview(T (&table)[SIZE]): ndv_t{} {
+            static_assert(SIZE >= idx<Ns...>::size(), "Too small array provided for ndview");
+            // static_assert(SIZE < idx<Ns...>::size(), std::);
+            
+            this->tab = table;
+        }
+        constexpr ndview(): ndv_t{} {}
     };
 
     template <typename T, typename... Ns>
