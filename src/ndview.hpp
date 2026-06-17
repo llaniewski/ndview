@@ -97,6 +97,18 @@ namespace ndv {
         return i;
     }
 
+    template <typename A, typename... B>
+    gpuHD constexpr auto decompose(const idx<A, B...> i) {
+        const size_t size = idx<A>::size();
+        const idx<A> a{i.value % size};
+        const idx<B...> b{i.value / size};
+        return std::tuple_cat(std::make_tuple(a), decompose(b));
+    }
+    template <typename A>
+    gpuHD constexpr auto decompose(const idx<A> a) {
+        return std::make_tuple(a);
+    }
+
     template <typename T, typename S, typename... Ns>
     class ndview_generic {
     public:
