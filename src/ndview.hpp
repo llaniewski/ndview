@@ -7,13 +7,13 @@
 #include <array>
 
 #ifdef __CUDACC__
-#define gpuHD inline __host__ __device__
-#define gpuH  inline __host__
-#define gpuD  inline __device__
+#define gpuHD __host__ __device__
+#define gpuH  __host__
+#define gpuD  __device__
 #else
-#define gpuHD inline
-#define gpuH inline
-#define gpuD inline
+#define gpuHD
+#define gpuH
+#define gpuD
 #endif
 
 
