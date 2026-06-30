@@ -140,12 +140,15 @@ namespace ndv {
     public:
         using ndv_t = ndview_generic<T, T*, Ns...>;
         gpuHD T*& data() { return this->tab; }
-        gpuHD const T*& data() const { return this->tab; }
+        gpuHD T* const& data() const { return this->tab; }
         template <size_t SIZE>
         constexpr ndview(T (&table)[SIZE]): ndv_t{} {
             static_assert(SIZE >= idx<Ns...>::size(), "Too small array provided for ndview");
             // static_assert(SIZE < idx<Ns...>::size(), std::);
             
+            this->tab = table;
+        }
+        constexpr ndview(T* table): ndv_t{} {
             this->tab = table;
         }
         constexpr ndview(): ndv_t{} {}
@@ -157,6 +160,7 @@ namespace ndv {
         using ndv_t = ndview_generic<T, T[idx<Ns...>::size()], Ns...>;
         gpuHD T* data() { return this->tab; }
         gpuHD const T* data() const { return this->tab; }
+        explicit gpuHD operator ndview<T, Ns...>() const { return data(); };
         constexpr ndarray() : ndv_t{} {}
         template <class T2>
         constexpr ndarray(const std::array<T2,idx<Ns...>::size()>& init) : ndv_t{} {
@@ -188,6 +192,7 @@ namespace ndv {
             if (init.size() != ndv_t::size()) throw std::runtime_error("Initializer list of wrong size in ndvector");
             std::copy(init.begin(), init.end(), this->tab.get()); // Don't know how to do it nicer.
         }
+        gpuHD operator ndview<T, Ns...>() { return ndview<T, Ns...>{data()}; };
         gpuH T* data() { return this->tab.get(); }
         gpuH const T* data() const { return this->tab.get(); }
     };
