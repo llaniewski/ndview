@@ -1,6 +1,7 @@
 #ifndef NDVIEW_HPP
 #define NDVIEW_HPP
 
+#include <concepts>
 #include <memory>
 #include <initializer_list>
 #include <stdexcept>
@@ -22,10 +23,9 @@ namespace ndv {
     template <size_t N> struct fixed_size {
         static constexpr size_t size() { return N; }
     };
-    template <typename T> class tagged : public T {
-        using tag = T;
+    template <typename TAG, typename T> class tagged : public T {
+        using tag = TAG;
     };
-    template<typename T> struct type_tagger { using type = T; };
 
     template <typename T>
     class dynamic_size {
@@ -39,6 +39,26 @@ namespace ndv {
     };
 
     #ifdef __CUDACC__
+        template <typename S, typename T>
+        struct gpu_constant {
+            static inline S value;
+            static void set(const S& value_) {
+                value = value_;
+                check_cuda(cudaMemcpyToSymbol(T::gpu_value(), &value, sizeof(S)),"cudaMemcpyToSymbol(...)");
+            }
+            gpuHD static size_t get() {
+                #ifdef __CUDA_ARCH__
+                    return T::gpu_value();
+                #else
+                    return value;
+                #endif
+            }
+        };
+        #define GPU_CONSTANT(type,name) \
+            __constant__ type name##_gpu_value; \
+            struct name##_gpu_constant_t { gpuHD static type& gpu_value() { return name##_gpu_value; } }; \
+            using name = gpu_dynamic_size< type, name##_gpu_constant_t >
+
         template <typename T>
         struct gpu_dynamic_size {
             static inline size_t size_;
@@ -109,6 +129,22 @@ namespace ndv {
         return std::make_tuple(a);
     }
 
+
+    template<typename A, typename B> struct idx_convertible_impl : std::false_type {};
+
+    template<typename... Ns, typename... Ms>
+    struct idx_convertible_impl< idx<Ns...>, idx<Ms...> >
+        : std::bool_constant<
+            sizeof...(Ns) == sizeof...(Ms) &&
+            (... && std::convertible_to<Ms, Ns>)
+        >
+    {};
+
+    template<typename A, typename B>
+    concept idx_convertible =
+        idx_convertible_impl<A, B>::value;
+
+
     template <typename T, typename S, typename... Ns>
     class ndview_generic {
     public:
@@ -119,10 +155,14 @@ namespace ndv {
         S tab;
         // template <typename... T> 
         // constexpr ndview_generic(T... ts) : tab{ts...} {}
-        constexpr gpuHD T& at(const idx_t& i) {
+        template <class i_t>
+        requires idx_convertible<idx_t, i_t>
+        constexpr gpuHD T& at(const i_t& i) {
             return tab[i.value];
         };
-        constexpr gpuHD const T& at(const idx_t& i) const {
+        template <class i_t>
+        requires idx_convertible<idx_t, i_t>
+        constexpr gpuHD const T& at(const i_t& i) const {
             return tab[i.value];
         };
         template <typename... Is>
