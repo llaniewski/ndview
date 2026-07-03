@@ -1,7 +1,9 @@
 #ifndef NDVIEW_HPP
 #define NDVIEW_HPP
 
-#include <concepts>
+#ifdef __cpp_concepts
+    #include <concepts>
+#endif
 #include <memory>
 #include <initializer_list>
 #include <stdexcept>
@@ -129,7 +131,7 @@ namespace ndv {
         return std::make_tuple(a);
     }
 
-
+    #ifdef __cpp_concepts
     template<typename A, typename B> struct idx_convertible_impl : std::false_type {};
 
     template<typename... Ns, typename... Ms>
@@ -143,7 +145,10 @@ namespace ndv {
     template<typename A, typename B>
     concept idx_convertible =
         idx_convertible_impl<A, B>::value;
-
+    #define REQIRE_CONVERTIBLE requires idx_convertible<idx_t, i_t>
+    #else
+    #define REQIRE_CONVERTIBLE
+    #endif
 
     template <typename T, typename S, typename... Ns>
     class ndview_generic {
@@ -156,12 +161,12 @@ namespace ndv {
         // template <typename... T> 
         // constexpr ndview_generic(T... ts) : tab{ts...} {}
         template <class i_t>
-        requires idx_convertible<idx_t, i_t>
+        REQIRE_CONVERTIBLE
         constexpr gpuHD T& at(const i_t& i) {
             return tab[i.value];
         };
         template <class i_t>
-        requires idx_convertible<idx_t, i_t>
+        REQIRE_CONVERTIBLE
         constexpr gpuHD const T& at(const i_t& i) const {
             return tab[i.value];
         };
@@ -224,17 +229,18 @@ namespace ndv {
 
 
     template <typename T, typename... Ns>
-    class ndvector : public ndview_generic<T, std::unique_ptr<T[]>, Ns...> {
+    class ndvector : public ndview_generic<T, T*, Ns...> {
     public:
-        using ndv_t = ndview_generic<T, std::unique_ptr<T[]>, Ns...>;
-        ndvector() : ndv_t{std::unique_ptr<T[]>{new T[ndv_t::size()]}} {}
-        ndvector(std::initializer_list<T> init) : ndv_t{std::unique_ptr<T[]>{new T[ndv_t::size()]}} {
+        using ndv_t = ndview_generic<T, T*, Ns...>;
+        ndvector() : ndv_t{new T[ndv_t::size()]} {}
+        ndvector(std::initializer_list<T> init) : ndv_t{new T[ndv_t::size()]} {
             if (init.size() != ndv_t::size()) throw std::runtime_error("Initializer list of wrong size in ndvector");
-            std::copy(init.begin(), init.end(), this->tab.get()); // Don't know how to do it nicer.
+            std::copy(init.begin(), init.end(), this->tab); // Don't know how to do it nicer.
         }
+        ~ndvector() { delete[] this->tab; }
         gpuHD operator ndview<T, Ns...>() { return ndview<T, Ns...>{data()}; };
-        gpuH T* data() { return this->tab.get(); }
-        gpuH const T* data() const { return this->tab.get(); }
+        gpuH T* data() { return this->tab; }
+        gpuH const T* data() const { return this->tab; }
     };
 
 }
