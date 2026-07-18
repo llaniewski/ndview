@@ -1,69 +1,70 @@
 #include <stdio.h>
-#include <vector>
+#include "ndview.hpp"
 
-template<int promote, int i> struct typeselector {
-    typedef typename typeselector<promote, i-1>::type type;
-};
+using namespace ndv;
 
-template<int promote> struct typeselector<promote,-1> { typedef unsigned int type; };
-template<int promote> struct typeselector<promote,promote> { typedef size_t type; };
-
-template<int promote, typename n_t, typename... rest_ts>
-class ndoffset {
-    typedef ndoffset< promote, rest_ts... > rest_t;
-public:
-    static const int mults = rest_t::mults + 1;
-private:
-    typedef typename typeselector<promote, mults>::type offset_t;
-    const rest_t rest;
-    const n_t n;
-public:
-    ndoffset(const n_t n_, const rest_ts&... rest_) : n(n_), rest(rest_...) {}
-    template<typename i_t, typename... other_ts>
-    offset_t calc(i_t i, const other_ts&... other) const {
-        return static_cast<offset_t>(rest.calc(other...)) * n + i;
-    }
-};
-
-template<int promote,typename n_t>
-class ndoffset<promote, n_t> {
-    const n_t n;
-public:
-    static const int mults = 0;
-    ndoffset(const n_t n_) : n(n_) {}
-    template<typename i_t>
-    n_t calc(i_t i) const {
-        return i;
-    }
-};
-
-
-template<int promote, typename T, typename... n_ts> class ndview {
-    typedef ndoffset< promote, n_ts... > offset_t;
-    const offset_t offset;
-    T* const ptr;
-public:
-    ndview(T* const ptr_, const n_ts&... n_) : ptr(ptr_), offset(n_...) {};
-    template<typename... i_ts>
-    T& at(const i_ts&... i) const {
-        auto idx = offset.calc(i...);
-        printf("mults: %d, idx:%ld, sizeof(idx):%ld\n", offset_t::mults, (size_t) idx, sizeof(idx));
-        return ptr[idx];
-    }
-};
-
-template<typename T, typename... n_ts> class ndview2 : public ndview<2, T, n_ts...> {
-    typedef ndview<2, T, n_ts...> parent;
-public:
-    ndview2(T* const ptr_, const n_ts&... n_) : parent(ptr_, n_...) {};
-};
+using size0 = fixed_size<4>;
+struct size1tag {};
+using size1 = tagged<size1tag, size0>;
+struct size2tag {};
+using size2 = tagged<size2tag, size0>;
+struct size3tag {};
+using size3 = dynamic_size<size3tag>;
+// template <>
+// size_t tag3::size = 0;
 
 int main() {
-    std::vector<int> vec;
-    vec.resize(30*30*30*30);
+    size3::set_size(3);
 
-    printf("value: %d\n",ndview2(vec.data(), 30).at(1));
-    printf("value: %d\n",ndview2(vec.data(), 30,30).at(1,1));
-    printf("value: %d\n",ndview2(vec.data(), 30,30,30).at(1,1,1));
-    printf("value: %d\n",ndview2(vec.data(), 30,30,30,30).at(1,1,1,1));
+    for (idx<size1> i; i; ++i) {
+        for (idx<size2> j; j; ++j) {
+            auto off = offset(i,j);
+            printf("%d %d %d\n",(int) i.value, (int) j.value, (int) off.value);
+        }
+    }
+
+    ndarray<double, size1, size2> tab_static;
+    for (idx<size1> i; i; ++i) {
+        for (idx<size2> j; j; ++j) {
+            tab_static(i,j) = i.value+j.value;
+        }
+    }
+    for (idx<size1,size2> i; i; ++i) {
+        double val = tab_static(i);
+        printf("%d: %lg\n",(int) i.value, (double) val);
+    }
+
+    ndarray<double, size0, size0> tab_static_agnostic;
+    for (idx<size1> i; i; ++i) {
+        for (idx<size2> j; j; ++j) {
+            tab_static_agnostic(i,j) = i.value+j.value;
+        }
+    }
+    for (idx<size1,size2> i; i; ++i) {
+        double val = tab_static_agnostic(i);
+        printf("%d: %lg\n",(int) i.value, (double) val);
+    }
+
+
+    ndvector<double, size1, size3> tab_dynamic;
+    for (idx<size1> i; i; ++i) {
+        for (idx<size3> j; j; ++j) {
+            tab_dynamic(i,j) = i.value+j.value;
+        }
+    }
+
+
+    ndarray<double, size1, size2> A;
+    ndvector<double, size2, size3> B;
+    ndvector<double, size1, size3> C;
+    for (idx<size1> i; i; ++i) {
+        for (idx<size3> j; j; ++j) {
+            C(i,j) = 0;
+            for (idx<size2> k; k; ++k) {
+                C(i,j) += A(i,k) * B(k,j);
+            }
+        }
+    }
+
+    return 0;
 }
