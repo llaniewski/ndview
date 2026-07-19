@@ -128,7 +128,7 @@ namespace ndv {
         gpuHD idx& operator+=(const size_t& val) { value+=val; return *this; };
         gpuHD const idx& operator*() const { return *this; };
         explicit gpuHD operator bool() const { return value < size(); };
-        gpuHD operator size_t() const { return value; };
+        //gpuHD operator size_t() const { return value; };
         bool operator!=(const idx& other) const { return value != other.value; };
     };
 
