@@ -96,31 +96,6 @@ struct gpu_global_size {
 #endif
 
 template <typename... Ns>
-class size_tuple;
-template <typename N, typename... Ns>
-class size_tuple<N, Ns...> {
-    using rest_t = size_tuple<Ns...>;
-    N      my;
-    rest_t rest;
-
-public:
-    template <typename... Ms>
-    constexpr size_tuple(const N& val, const Ms&... v) : my{val}, rest{v...} {};
-    template <typename... Ms>
-    constexpr size_tuple(const Ms&... v) : my{}, rest{v...} {};
-    constexpr size_t size() { return my.size() * rest.size(); }
-};
-template <typename N>
-class size_tuple<N> {
-    N my;
-
-public:
-    constexpr size_tuple(const N& val) : my{val} {};
-    constexpr size_tuple() : my{} {};
-    constexpr size_t size() { return my.size(); }
-};
-
-template <typename... Ns>
 constexpr auto total_size() {
     return (Ns::size() * ... * 1);
 }
@@ -184,6 +159,69 @@ gpuHD constexpr auto decompose(const idx<A> a) {
     return std::make_tuple(a);
 }
 
+template <typename... Ns>
+class size_tuple_imp;
+template <typename N, typename... Ns>
+class size_tuple_imp<N, Ns...> {
+    using rest_t = size_tuple_imp<Ns...>;
+    N      my;
+    rest_t rest;
+
+public:
+    template <size_t K>
+    auto get_ic(std::integral_constant<size_t, K> arg) {
+        return rest.get_ic(std::integral_constant<size_t, K - 1>{});
+    }
+    auto get_ic(std::integral_constant<size_t, 0> arg) { return my; }
+
+    template <typename... Ms>
+    constexpr size_tuple_imp(const N& val, const Ms&... v) : my{val}, rest{v...} {};
+    template <typename... Ms>
+    constexpr size_tuple_imp(const Ms&... v) : my{}, rest{v...} {};
+    constexpr size_t size() const { return my.size() * rest.size(); }
+};
+
+template <typename N>
+class size_tuple_imp<N> {
+    N my;
+
+public:
+    auto get_ic(std::integral_constant<size_t, 0> arg) { return my; }
+    constexpr size_tuple_imp(const N& val) : my{val} {};
+    constexpr size_tuple_imp() : my{} {};
+    constexpr size_t size() const { return my.size(); }
+};
+
+template <typename... Ns>
+class size_tuple : public size_tuple_imp<Ns...> {
+    class idx_seq {
+        using stuple_t = size_tuple<Ns...>;
+        const stuple_t& sizes;
+        const size_t    start;
+        const size_t    jump;
+        struct iterator {
+            size_t       value;
+            const size_t jump;
+            idx<Ns...>   operator*() const { return idx<Ns...>{value}; }
+            void         operator++() { value += jump; }
+            bool         operator!=(const iterator& other) const { return value < other.value; }
+        };
+
+    public:
+        constexpr idx_seq(const stuple_t& sizes_, size_t start_, size_t jump_)
+            : sizes{sizes_}, start{start_}, jump{jump_} {}
+        iterator begin() const { return iterator{start, jump}; }
+        iterator end() const { return iterator{sizes.size(), jump}; }
+    };
+
+public:
+    idx_seq indexes(size_t start = 0, size_t jump = 1) { return idx_seq{*this, start, jump}; }
+    template <size_t K>
+    auto get() {
+        return get_ic(std::integral_constant<size_t, K>{});
+    }
+};
+
 #ifdef __cpp_concepts
 template <typename A, typename B>
 struct idx_convertible_impl : std::false_type {};
@@ -209,7 +247,10 @@ public:
     S                 tab;
 
     constexpr auto size() { return sizes.size(); }
-
+    template <size_t K>
+    auto extent() {
+        return sizes.template get<K>();
+    }
     // template <typename... T>
     // constexpr ndview_generic(T... ts) : tab{ts...} {}
     template <class i_t>

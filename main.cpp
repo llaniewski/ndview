@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include "ndview.hpp"
+#include <stdio.h>
 
 using namespace ndv;
 
@@ -20,15 +20,29 @@ int main() {
     // size_tuple<size1, size4, size2> w1;
     // size_tuple<size1, size4> w2{s};
 
-    ndvector< double, size4, size1> test{s};
-    
+    ndvector<double, size4, size1> test{s};
+
     for (idx<size1> i; i; ++i) {
         for (idx<size4> j; j < s; ++j) {
-            auto off = offset(i,j);
-            printf("%d %d %d\n",(int) i.value, (int) j.value, (int) off.value);
+            auto off = offset(i, j);
+            printf("%d %d %d\n", (int)i.value, (int)j.value, (int)off.value);
         }
     }
 
+    // idx_seq<size4> iset{0, 1, s};
+    for (auto i : size_tuple<size4>(s).indexes()) {
+        printf("index1: %d\n", (int)i);
+    }
+
+    for (auto i : test.sizes.indexes(1, 5)) {
+        printf("index2: %d\n", (int)i);
+    }
+
+    auto w = test.extent<1>();
+
+    // for (auto i : indexes{s}) {
+    //     printf("index: %d\n", (int)i);
+    // }
     // printf("%d\n", (int) test.size());
 
     // for (idx<size1> i; i; ++i) {
@@ -60,14 +74,12 @@ int main() {
     //     printf("%d: %lg\n",(int) i.value, (double) val);
     // }
 
-
     // ndvector<double, size1, size3> tab_dynamic;
     // for (idx<size1> i; i; ++i) {
     //     for (idx<size3> j; j; ++j) {
     //         tab_dynamic(i,j) = i.value+j.value;
     //     }
     // }
-
 
     // ndarray<double, size1, size2> A;
     // ndvector<double, size2, size3> B;
