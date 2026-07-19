@@ -105,9 +105,9 @@ class size_tuple<N, Ns...> {
 
 public:
     template <typename... Ms>
-    size_tuple(const N& val, const Ms&... v) : my{val}, rest{v...} {};
+    constexpr size_tuple(const N& val, const Ms&... v) : my{val}, rest{v...} {};
     template <typename... Ms>
-    size_tuple(const Ms&... v) : my{}, rest{v...} {};
+    constexpr size_tuple(const Ms&... v) : my{}, rest{v...} {};
     constexpr size_t size() { return my.size() * rest.size(); }
 };
 template <typename N>
@@ -115,8 +115,8 @@ class size_tuple<N> {
     N my;
 
 public:
-    size_tuple(const N& val) : my{val} {};
-    size_tuple() : my{} {};
+    constexpr size_tuple(const N& val) : my{val} {};
+    constexpr size_tuple() : my{} {};
     constexpr size_t size() { return my.size(); }
 };
 
@@ -152,6 +152,7 @@ public:
     };
     gpuHD const idx& operator*() const { return *this; };
     explicit gpuHD   operator bool() const { return value < size(); };
+    explicit gpuHD   operator int() const { return value; };
     // gpuHD operator size_t() const { return value; };
     bool operator!=(const idx& other) const { return value != other.value; };
 };
@@ -238,10 +239,9 @@ public:
     template <size_t SIZE>
     constexpr ndview(T (&table)[SIZE]) : ndv_t{} {
         static_assert(SIZE >= idx<Ns...>::size(), "Too small array provided for ndview");
-        // static_assert(SIZE < idx<Ns...>::size(), std::);
-
         this->tab = table;
     }
+    constexpr ndview(T* table) : ndv_t{} { this->tab = table; }
     template <typename... Ms>
     constexpr ndview(T* table, const Ms&... other) : ndv_t{other...} {
         this->tab = table;
