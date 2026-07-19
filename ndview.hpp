@@ -29,8 +29,15 @@ namespace ndv {
         using tag = TAG;
     };
 
-    template <typename T>
     class dynamic_size {
+        size_t size_;
+    public:
+        dynamic_size(size_t size__) : size_{size__} {};
+        size_t size() { return size_; };
+    };
+
+    template <typename T>
+    class global_size {
         static inline size_t size_;
     public:
         using tag = T;
@@ -59,10 +66,10 @@ namespace ndv {
         #define GPU_CONSTANT(type,name) \
             __constant__ type name##_gpu_value; \
             struct name##_gpu_constant_t { gpuHD static type& gpu_value() { return name##_gpu_value; } }; \
-            using name = gpu_dynamic_size< type, name##_gpu_constant_t >
+            using name = gpu_global_size< type, name##_gpu_constant_t >
 
         template <typename T>
-        struct gpu_dynamic_size {
+        struct gpu_global_size {
             static inline size_t size_;
             static void set_size(size_t size__) {
                 size_ = size__;
@@ -80,8 +87,30 @@ namespace ndv {
         #define GPU_SIZE(Type) \
             __constant__ size_t Type##_size_gpu; \
             struct Type##_size_t { gpuHD static size_t& gpu_size() { return Type##_size_gpu; } }; \
-            using Type = gpu_dynamic_size< Type##_size_t >
+            using Type = gpu_global_size< Type##_size_t >
     #endif
+
+
+    template <typename... Ns> class size_tuple;
+    template <typename N, typename... Ns> class size_tuple <N, Ns...>{
+        using rest_t = size_tuple<Ns...>;
+        N my;
+        rest_t rest;
+    public:
+        template <typename... Ms>
+        size_tuple(const N& val, const Ms&... v) : my{val}, rest{v...} {};
+        template <typename... Ms>
+        size_tuple(const Ms&... v)
+        : my{}, rest{v...}   {};
+        constexpr size_t size() { return my.size() * rest.size(); }
+    };
+    template <typename N> class size_tuple<N>{
+        N my;
+    public:
+        size_tuple(const N& val) : my{val} {};
+        size_tuple() : my{} {};
+        constexpr size_t size() { return my.size(); }
+    };
 
 
     template <typename... Ns>
@@ -156,8 +185,12 @@ namespace ndv {
         using storage_t = S;
         using value_t = T;
         using idx_t = idx<Ns...>;
-        static constexpr auto size() { return idx_t::size(); }
+        size_tuple<Ns...> sizes;
         S tab;
+        
+
+        constexpr auto size() { return sizes.size(); }
+        
         // template <typename... T> 
         // constexpr ndview_generic(T... ts) : tab{ts...} {}
         template <class i_t>
@@ -193,7 +226,8 @@ namespace ndv {
             
             this->tab = table;
         }
-        constexpr ndview(T* table): ndv_t{} {
+        template <typename... Ms>
+        constexpr ndview(T* table, const Ms&... other): ndv_t{other...} {
             this->tab = table;
         }
         constexpr ndview(): ndv_t{} {}
@@ -232,7 +266,10 @@ namespace ndv {
     class ndvector : public ndview_generic<T, T*, Ns...> {
     public:
         using ndv_t = ndview_generic<T, T*, Ns...>;
-        ndvector() : ndv_t{new T[ndv_t::size()]} {}
+        template <typename... Ms>
+        ndvector(const Ms&... other): ndv_t{other...} {
+            this->tab = new T[ndv_t::size()];
+        }
         ndvector(std::initializer_list<T> init) : ndv_t{new T[ndv_t::size()]} {
             if (init.size() != ndv_t::size()) throw std::runtime_error("Initializer list of wrong size in ndvector");
             std::copy(init.begin(), init.end(), this->tab); // Don't know how to do it nicer.
