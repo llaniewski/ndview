@@ -33,7 +33,7 @@ namespace ndv {
         size_t size_;
     public:
         dynamic_size(size_t size__) : size_{size__} {};
-        size_t size() { return size_; };
+        size_t size() const { return size_; };
     };
 
     template <typename T>
@@ -119,6 +119,11 @@ namespace ndv {
     }
 
     template <typename... Ns>
+    constexpr auto total_size(const Ns&... x) {
+        return (x.size() * ... * 1);
+    }
+
+    template <typename... Ns>
     class idx {
     public:
         using type = size_t;
@@ -126,6 +131,10 @@ namespace ndv {
         type value = 0;
         gpuHD idx& operator++() { value++; return *this; };
         gpuHD idx& operator+=(const size_t& val) { value+=val; return *this; };
+        gpuHD bool less(const idx& other) const { return value < other.value; };
+        gpuHD bool less(const Ns&... x) const { return value < total_size(x...); };
+        template <typename T>
+        gpuHD bool operator<(const T& other) const { return less(other); };
         gpuHD const idx& operator*() const { return *this; };
         explicit gpuHD operator bool() const { return value < size(); };
         //gpuHD operator size_t() const { return value; };
