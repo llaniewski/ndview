@@ -177,6 +177,7 @@ public:
     template <typename... Ms>
     constexpr size_tuple_imp(const N& val, const Ms&... v) : my{val}, rest{v...} {};
     template <typename... Ms>
+        requires std::is_trivially_constructible_v<N>
     constexpr size_tuple_imp(const Ms&... v) : my{}, rest{v...} {};
     constexpr size_t size() const { return my.size() * rest.size(); }
 };
@@ -194,11 +195,12 @@ public:
 
 template <typename... Ns>
 class size_tuple : public size_tuple_imp<Ns...> {
+    using parent_t = size_tuple_imp<Ns...>;
     class idx_seq {
         using stuple_t = size_tuple<Ns...>;
-        const stuple_t& sizes;
-        const size_t    start;
-        const size_t    jump;
+        const stuple_t sizes;
+        const size_t   start;
+        const size_t   jump;
         struct iterator {
             size_t       value;
             const size_t jump;
@@ -215,10 +217,17 @@ class size_tuple : public size_tuple_imp<Ns...> {
     };
 
 public:
+    template <typename... Ms>
+    constexpr size_tuple(const Ms&... s) : parent_t{s...} {}
+
     idx_seq indexes(size_t start = 0, size_t jump = 1) { return idx_seq{*this, start, jump}; }
     template <size_t K>
     auto get() {
-        return get_ic(std::integral_constant<size_t, K>{});
+        return this->get_ic(std::integral_constant<size_t, K>{});
+    }
+    template <size_t... Ks>
+    auto subtuple() {
+        return size_tuple<decltype(get<Ks>())...>(get<Ks>()...);
     }
 };
 
@@ -251,8 +260,12 @@ public:
     auto extent() {
         return sizes.template get<K>();
     }
-    // template <typename... T>
-    // constexpr ndview_generic(T... ts) : tab{ts...} {}
+    template <size_t... Ks>
+    auto indexes(size_t start = 0, size_t jump = 1) {
+        return sizes.template subtuple<Ks...>().indexes(start, jump);
+    }
+    template <typename... Ms>
+    constexpr ndview_generic(const Ms&... s) : sizes{s...} {}
     template <class i_t>
     REQIRE_CONVERTIBLE constexpr gpuHD T& at(const i_t& i) {
         return tab[i.value];
